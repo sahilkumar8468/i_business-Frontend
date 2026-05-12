@@ -30,10 +30,7 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ children, title, subtitle }) =>
           </p>
           
           <div className="mt-12 hidden md:block">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-full text-slate-600 text-sm font-medium">
-              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-              Trusted by 10k+ businesses
-            </div>
+         
           </div>
         </div>
 
