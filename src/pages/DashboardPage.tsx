@@ -2,24 +2,20 @@ import React, { useEffect, useState } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
 import { 
   TrendingUp, 
-  Users, 
   ShoppingBag, 
   DollarSign,
   ArrowUpRight,
-  ArrowDownRight,
-  MoreVertical,
   Plus,
   Loader2,
   CreditCard,
   Gem,
   ShoppingCart,
   PieChart,
-  ArrowRight,
-  Building2
+  ArrowRight
 } from 'lucide-react';
 import { businessService, assetService, expenseService, cashService } from '../services/api';
 import CashSummaryCard from '../components/CashSummaryCard';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 
@@ -28,15 +24,27 @@ const DashboardPage: React.FC = () => {
   const [assets, setAssets] = useState<any[]>([]);
   const [expenses, setExpenses] = useState<any[]>([]);
   const [cash, setCash] = useState<any>(null);
+  const [totalProfit, setTotalProfit] = useState(0);
+  const [userProfit, setUserProfit] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
   const { language, t, isRTL } = useLanguage();
   const { theme } = useTheme();
-
   useEffect(() => {
     const fetchAllData = async () => {
       try {
         setIsLoading(true);
+        const token = localStorage.getItem('token');
+        const meRes = await fetch('http://localhost:5000/users/me', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const userData = await meRes.json();
+        
+        if (userData.globalRole === 'employee') {
+          navigate('/businesses');
+          return;
+        }
+
         const [bizData, assetData, expData, cashData] = await Promise.all([
           businessService.getBusinesses(),
           assetService.getAssets(),
@@ -47,6 +55,23 @@ const DashboardPage: React.FC = () => {
         setAssets(assetData);
         setExpenses(expData);
         setCash(cashData);
+
+        // Fetch profit data for all businesses
+        let totalBizProfit = 0;
+        let totalUserProfit = 0;
+        
+        for (const biz of bizData) {
+          try {
+            const profit = await businessService.getBusinessProfit(biz.id);
+            totalBizProfit += profit.totalProfit || 0;
+            totalUserProfit += profit.userProfit || 0;
+          } catch (err) {
+            console.error(`Error fetching profit for ${biz.id}:`, err);
+          }
+        }
+        
+        setTotalProfit(totalBizProfit);
+        setUserProfit(totalUserProfit);
       } catch (err) {
         console.error('Dashboard Data Fetch Error:', err);
       } finally {
@@ -54,7 +79,7 @@ const DashboardPage: React.FC = () => {
       }
     };
     fetchAllData();
-  }, []);
+  }, [navigate]);
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('en-PK', {
@@ -113,35 +138,33 @@ const DashboardPage: React.FC = () => {
               </div>
            </div>
 
-           {/* Total Assets */}
-           <div className="card p-6 relative overflow-hidden group hover:scale-[1.02] transition-transform">
-              <div className={`absolute ${isRTL ? '-left-4' : '-right-4'} -bottom-4 text-primary/5 group-hover:scale-110 transition-transform`}>
-                 <Gem size={80} />
+           {/* Total Business Profit */}
+           <div className={`card p-6 relative overflow-hidden group hover:scale-[1.02] transition-transform ${totalProfit >= 0 ? 'bg-emerald-50 dark:bg-emerald-900/10' : 'bg-rose-50 dark:bg-rose-900/10'}`}>
+              <div className={`absolute ${isRTL ? '-left-4' : '-right-4'} -bottom-4 ${totalProfit >= 0 ? 'text-emerald-500/5' : 'text-rose-500/5'} group-hover:scale-110 transition-transform`}>
+                 <TrendingUp size={80} />
               </div>
-              <p className="text-slate-500 dark:text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-1">{t('totalAssets')}</p>
-              <h3 className="text-2xl font-black text-slate-900 dark:text-white">{formatCurrency(totalAssets)}</h3>
-              <div className="mt-4 flex items-center gap-1 text-blue-500 text-xs font-bold">
-                 <Building2 size={14} className="inline mr-1" />
-                 <span>{assets.length} Items</span>
+              <p className={`${totalProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'} font-bold text-[10px] uppercase tracking-widest mb-1`}>Total Business Profit</p>
+              <h3 className={`text-2xl font-black ${totalProfit >= 0 ? 'text-emerald-900 dark:text-emerald-300' : 'text-rose-900 dark:text-rose-300'}`}>{formatCurrency(totalProfit)}</h3>
+              <div className="mt-4 flex items-center gap-1 text-xs font-bold">
+                 <span>All Businesses</span>
               </div>
            </div>
 
-           {/* Home Expenses */}
-           <div className="card p-6 relative overflow-hidden group hover:scale-[1.02] transition-transform">
-              <div className={`absolute ${isRTL ? '-left-4' : '-right-4'} -bottom-4 text-rose-500/5 group-hover:scale-110 transition-transform`}>
-                 <ShoppingCart size={80} />
+           {/* Your Profit Share */}
+           <div className={`card p-6 relative overflow-hidden group hover:scale-[1.02] transition-transform ${userProfit >= 0 ? 'bg-amber-50 dark:bg-amber-900/10' : 'bg-rose-50 dark:bg-rose-900/10'}`}>
+              <div className={`absolute ${isRTL ? '-left-4' : '-right-4'} -bottom-4 ${userProfit >= 0 ? 'text-amber-500/5' : 'text-rose-500/5'} group-hover:scale-110 transition-transform`}>
+                 <DollarSign size={80} />
               </div>
-              <p className="text-slate-500 dark:text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-1">{t('expenses')}</p>
-              <h3 className="text-2xl font-black text-slate-900 dark:text-white">{formatCurrency(totalExpenses)}</h3>
-              <div className="mt-4 flex items-center gap-1 text-rose-500 text-xs font-bold">
-                 <ArrowDownRight size={14} className={isRTL ? 'rotate-[-90deg]' : ''} />
-                 <span>This Month</span>
+              <p className={`${userProfit >= 0 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'} font-bold text-[10px] uppercase tracking-widest mb-1`}>Your Profit Share</p>
+              <h3 className={`text-2xl font-black ${userProfit >= 0 ? 'text-amber-900 dark:text-amber-300' : 'text-rose-900 dark:text-rose-300'}`}>{formatCurrency(userProfit)}</h3>
+              <div className="mt-4 flex items-center gap-1 text-xs font-bold">
+                 <span>Based on Ownership</span>
               </div>
            </div>
 
            {/* Total Businesses */}
            <div className="card p-6 relative overflow-hidden group hover:scale-[1.02] transition-transform">
-              <div className={`absolute ${isRTL ? '-left-4' : '-right-4'} -bottom-4 text-emerald-500/5 group-hover:scale-110 transition-transform`}>
+              <div className={`absolute ${isRTL ? '-left-4' : '-right-4'} -bottom-4 text-primary/5 group-hover:scale-110 transition-transform`}>
                  <ShoppingBag size={80} />
               </div>
               <p className="text-slate-500 dark:text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-1">{t('businesses')}</p>

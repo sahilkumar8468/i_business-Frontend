@@ -23,6 +23,13 @@ export const authService = {
     }
     return response.data;
   },
+  userLogin: async (credentials: any) => {
+    const response = await api.post('/users/login', credentials);
+    if (response.data.token) {
+      localStorage.setItem('token', response.data.token);
+    }
+    return response.data;
+  },
   logout: () => {
     localStorage.removeItem('token');
   }
@@ -51,6 +58,39 @@ export const businessService = {
   },
   getBusinessEntries: async (businessId: string, params: any) => {
     const response = await api.get(`/businesses/${businessId}/entries`, { params });
+    return response.data;
+  },
+  getBusinessProfit: async (businessId: string, userId?: string) => {
+    const params = userId ? { userId } : {};
+    const response = await api.get(`/businesses/${businessId}/profit`, { params });
+    return response.data;
+  },
+  getBusinessPartners: async (businessId: string) => {
+    const response = await api.get(`/businesses/${businessId}/partners`);
+    return response.data;
+  },
+  updateBusinessPartners: async (businessId: string, partners: any[]) => {
+    const response = await api.post(`/businesses/${businessId}/partners`, { partners });
+    return response.data;
+  },
+  joinBusiness: async (businessId: string) => {
+    const response = await api.post('/businesses/join', { businessId });
+    return response.data;
+  },
+  updateBusiness: async (businessId: string, data: any) => {
+    const response = await api.patch(`/businesses/${businessId}`, data);
+    return response.data;
+  },
+  deleteBusiness: async (businessId: string) => {
+    const response = await api.delete(`/businesses/${businessId}`);
+    return response.data;
+  },
+  updateEntry: async (businessId: string, entryId: string, data: any) => {
+    const response = await api.patch(`/businesses/${businessId}/entries/${entryId}`, data);
+    return response.data;
+  },
+  deleteEntry: async (businessId: string, entryId: string) => {
+    const response = await api.delete(`/businesses/${businessId}/entries/${entryId}`);
     return response.data;
   }
 };

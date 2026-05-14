@@ -7,6 +7,7 @@ import BusinessesPage from './pages/BusinessesPage';
 import BusinessDetailsPage from './pages/BusinessDetailsPage';
 import AssetsPage from './pages/AssetsPage';
 import HomeExpensesPage from './pages/HomeExpensesPage';
+import UsersPage from './pages/UsersPage';
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
         <Route path="/businesses/:businessId" element={<BusinessDetailsPage />} />
         <Route path="/assets" element={<AssetsPage />} />
         <Route path="/expenses" element={<HomeExpensesPage />} />
+        <Route path="/users" element={<UsersPage />} />
         <Route path="/" element={<Navigate to="/login" replace />} />
       </Routes>
     </Router>

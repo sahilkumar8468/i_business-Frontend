@@ -17,10 +17,16 @@ const LoginPage: React.FC = () => {
     setError('');
     
     try {
-      // For testing RBAC, we'll use the Admin Login
-      // In a real app, you'd switch between Firebase and Custom Admin login
-      await authService.adminLogin({ username, password });
-      navigate('/dashboard');
+      // First try Super Admin Login
+      try {
+        await authService.adminLogin({ username, password });
+        navigate('/dashboard');
+        return;
+      } catch (adminErr) {
+        // If Super Admin fails, try regular User Login
+        await authService.userLogin({ username, password });
+        navigate('/dashboard');
+      }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Login failed. Please check your credentials.');
     } finally {

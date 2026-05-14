@@ -11,12 +11,14 @@ import {
   BarChart3,
   CreditCard,
   Gem,
-  ShoppingCart
+  ShoppingCart,
+  Loader2
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 import { Sun, Moon, Languages, Globe } from 'lucide-react';
+import { Toaster } from 'react-hot-toast';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -24,21 +26,65 @@ interface DashboardLayoutProps {
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isUserLoading, setIsUserLoading] = useState(true);
   const navigate = useNavigate();
   const { language, setLanguage, t, isRTL } = useLanguage();
   const { theme, toggleTheme } = useTheme();
 
-  const menuItems = [
-    { icon: <LayoutDashboard size={20} />, label: t('overview'), path: '/dashboard' },
-    { icon: <CreditCard size={20} />, label: t('cashManagement'), path: '/cash' },
-    { icon: <BarChart3 size={20} />, label: t('businesses'), path: '/businesses' },
-    { icon: <Gem size={20} />, label: t('assets'), path: '/assets' },
-    { icon: <ShoppingCart size={20} />, label: t('expenses'), path: '/expenses' },
-    { icon: <Settings size={20} />, label: t('settings'), path: '#' },
+  React.useEffect(() => {
+    const fetchMe = async () => {
+      try {
+        setIsUserLoading(true);
+        const token = localStorage.getItem('token');
+        if (!token) {
+          navigate('/login');
+          return;
+        }
+        const res = await fetch('http://localhost:5000/users/me', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          setCurrentUser(await res.json());
+        } else {
+          navigate('/login');
+        }
+      } catch (err) {
+        console.error("Failed to fetch user profile", err);
+      } finally {
+        setIsUserLoading(false);
+      }
+    };
+    fetchMe();
+  }, [navigate]);
+
+  const allMenuItems = [
+    { icon: <LayoutDashboard size={20} />, label: t('overview'), path: '/dashboard', roles: ['super_admin', 'admin'] },
+    { icon: <CreditCard size={20} />, label: t('cashManagement'), path: '/cash', roles: ['super_admin', 'admin'] },
+    { icon: <BarChart3 size={20} />, label: t('businesses'), path: '/businesses', roles: ['super_admin', 'admin', 'employee'] },
+    { icon: <Users size={20} />, label: 'Users', path: '/users', roles: ['super_admin', 'admin'] },
+    { icon: <Gem size={20} />, label: t('assets'), path: '/assets', roles: ['super_admin', 'admin'] },
+    { icon: <ShoppingCart size={20} />, label: t('expenses'), path: '/expenses', roles: ['super_admin', 'admin'] },
+    { icon: <Settings size={20} />, label: t('settings'), path: '#', roles: ['super_admin', 'admin'] },
   ];
+
+  const menuItems = allMenuItems.filter(item => {
+    const userRole = currentUser?.globalRole;
+    if (!userRole) return false;
+    return item.roles.includes(userRole);
+  });
+
+  if (isUserLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <Loader2 className="animate-spin text-primary" size={48} />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
+      <Toaster position="top-right" />
       {/* Sidebar Overlay (Mobile) */}
       {isSidebarOpen && (
         <div 
@@ -139,7 +185,10 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
             
             <div className="flex items-center gap-3 pl-2">
               <div className="text-right hidden sm:block">
-                <p className="text-sm font-bold text-slate-900">Alex Johnson</p>
+                <p className="text-sm font-bold text-slate-900">
+                  
+                  Alex Johnson
+                  </p>
                 <p className="text-xs text-slate-500">Administrator</p>
               </div>
               <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-primary to-indigo-400 border-2 border-white shadow-md flex items-center justify-center text-white font-bold">

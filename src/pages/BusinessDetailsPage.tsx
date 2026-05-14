@@ -14,30 +14,39 @@ import {
   ArrowLeft,
   ChevronRight,
   Filter,
-  FileUp
+  FileUp,
+  Users,
+  Edit,
+  Clock
 } from 'lucide-react';
 import { businessService } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
+import { toast } from 'react-hot-toast';
 
 const BusinessDetailsPage: React.FC = () => {
   const { businessId } = useParams<{ businessId: string }>();
   const navigate = useNavigate();
   const [business, setBusiness] = useState<any>(null);
   const [entries, setEntries] = useState<any[]>([]);
+  const [profitData, setProfitData] = useState<any>(null);
   const { language, t, isRTL } = useLanguage();
   const { theme } = useTheme();
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'entries' | 'config' | 'reports'>('entries');
+  const [activeTab, setActiveTab] = useState<'entries' | 'config' | 'reports' | 'partners'>('entries');
+  const [isEntryModalOpen, setIsEntryModalOpen] = useState(false);
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   
   // Field Config State
   const [configFields, setConfigFields] = useState<any[]>([]);
   const [newFieldName, setNewFieldName] = useState('');
   const [newFieldType, setNewFieldType] = useState('text');
+  const [newAccountingType, setNewAccountingType] = useState('neutral');
   
   // Entry Form State
   const [entryForm, setEntryForm] = useState<any>({});
   const [isSavingEntry, setIsSavingEntry] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   
   // Filter/Search State
   const [searchQuery, setSearchQuery] = useState('');
@@ -45,6 +54,18 @@ const BusinessDetailsPage: React.FC = () => {
   const [dateFilter, setDateFilter] = useState({ start: '', end: '' });
 
   useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch('http://localhost:5000/users/me', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) setCurrentUser(await res.json());
+      } catch (err) {
+        console.error("Failed to fetch user");
+      }
+    };
+    fetchUser();
     if (businessId) {
       fetchBusinessData();
     }
@@ -57,10 +78,23 @@ const BusinessDetailsPage: React.FC = () => {
       setBusiness(biz);
       setConfigFields(biz.config?.fields || []);
       
-      const entriesData = await businessService.getBusinessEntries(businessId!, {});
-      setEntries(entriesData);
-    } catch (err) {
+      try {
+        const entriesData = await businessService.getBusinessEntries(businessId!, {});
+        setEntries(entriesData);
+      } catch (entriesErr: any) {
+        console.error('Failed to fetch entries:', entriesErr.response?.data?.error || entriesErr.message);
+        toast.error('Could not load entries: ' + (entriesErr.response?.data?.error || 'Permission denied'));
+      }
+      
+      try {
+        const profit = await businessService.getBusinessProfit(businessId!);
+        setProfitData(profit);
+      } catch (profitErr: any) {
+        console.error('Failed to fetch profit:', profitErr.response?.data?.error || profitErr.message);
+      }
+    } catch (err: any) {
       console.error(err);
+      toast.error('Failed to load business: ' + (err.response?.data?.error || err.message));
     } finally {
       setIsLoading(false);
     }
@@ -88,39 +122,60 @@ const BusinessDetailsPage: React.FC = () => {
     setNewFieldName('');
   };
 
-  const calculateProfit = () => {
-    let totalIncome = 0;
-    let totalExpense = 0;
-
-    entries.forEach(entry => {
-      configFields.forEach(field => {
-        const val = Number(entry[field.key]) || 0;
-        if (field.accountingType === 'income') totalIncome += val;
-        if (field.accountingType === 'expense') totalExpense += val;
-      });
-    });
-
-    return totalIncome - totalExpense;
-  };
-
   const removeField = (key: string) => {
     setConfigFields(configFields.filter(f => f.key !== key));
   };
 
-  const handleAddEntry = async (e: React.FormEvent) => {
+  const handleDeleteEntry = async (entryId: string) => {
+    if (!window.confirm('Are you sure you want to delete this entry?')) return;
+
+    try {
+      await businessService.deleteEntry(businessId!, entryId);
+      toast.success('Entry deleted successfully');
+      fetchBusinessData();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || 'Failed to delete entry');
+    }
+  };
+
+  const handleEditEntry = (entry: any) => {
+    setEditingEntryId(entry.id);
+    setEntryForm(entry);
+    setIsEntryModalOpen(true);
+  };
+
+  const handleSaveEntry = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       setIsSavingEntry(true);
-      await businessService.addBusinessEntry(businessId!, entryForm);
+      if (editingEntryId) {
+        await businessService.updateEntry(businessId!, editingEntryId, entryForm);
+        toast.success('Entry updated successfully');
+      } else {
+        await businessService.addBusinessEntry(businessId!, entryForm);
+        toast.success('Entry added successfully');
+      }
+      setIsEntryModalOpen(false);
       setEntryForm({});
-      alert(language === 'en' ? 'Entry added successfully!' : (language === 'ur' ? 'اندراج کامیابی سے شامل ہو گیا!' : 'اندراج ڪاميابي سان شامل ٿي ويو!'));
+      setEditingEntryId(null);
       fetchBusinessData();
-    } catch (err) {
-      alert(language === 'en' ? 'Failed to add entry' : (language === 'ur' ? 'اندراج شامل کرنے میں ناکام' : 'اندراج شامل ڪرڻ ۾ ناڪام'));
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || 'Failed to save entry');
     } finally {
       setIsSavingEntry(false);
     }
   };
+
+  const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat(
+    language === 'en' ? 'en-PK' : 'ur-PK',
+    {
+      style: 'currency',
+      currency: 'PKR',
+      maximumFractionDigits: 0,
+    }
+  ).format(amount);
+};
 
   const exportToCSV = () => {
     if (entries.length === 0) return;
@@ -175,19 +230,30 @@ const BusinessDetailsPage: React.FC = () => {
               {t('entries')}
             </button>
             <button 
-              onClick={() => setActiveTab('config')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'config' ? 'bg-white dark:bg-slate-700 text-primary dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'} ${isRTL ? 'flex-row-reverse' : ''}`}
-            >
-              <Settings size={18} />
-              {t('setupFields')}
-            </button>
-            <button 
               onClick={() => setActiveTab('reports')}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'reports' ? 'bg-white dark:bg-slate-700 text-primary dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'} ${isRTL ? 'flex-row-reverse' : ''}`}
             >
               <BarChart size={18} />
-              {t('reports')}
+              Overview
             </button>
+            {business?.currentUserRole !== 'employee' && (
+              <>
+                <button 
+                  onClick={() => setActiveTab('config')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'config' ? 'bg-white dark:bg-slate-700 text-primary dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'} ${isRTL ? 'flex-row-reverse' : ''}`}
+                >
+                  <Settings size={18} />
+                  {t('setupFields')}
+                </button>
+                <button 
+                  onClick={() => setActiveTab('partners')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'partners' ? 'bg-white dark:bg-slate-700 text-primary dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'} ${isRTL ? 'flex-row-reverse' : ''}`}
+                >
+                  <Users size={18} />
+                  Partners
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -284,14 +350,14 @@ const BusinessDetailsPage: React.FC = () => {
               {/* Entry Form */}
               <div className="lg:col-span-1">
                 <div className="card sticky top-8 dark:bg-slate-800 dark:border-slate-700">
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-6">{t('newEntry')}</h3>
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-6">{editingEntryId ? 'Edit Entry' : t('newEntry')}</h3>
                   {configFields.length === 0 ? (
                     <div className="text-center py-8">
                       <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">{t('pleaseSetupFields')}</p>
                       <button onClick={() => setActiveTab('config')} className="text-primary font-bold text-sm hover:underline">{t('goToSetup')}</button>
                     </div>
                   ) : (
-                    <form onSubmit={handleAddEntry} className="space-y-5">
+                    <form onSubmit={handleSaveEntry} className="space-y-5">
                       {configFields.map((field) => (
                         <div key={field.key}>
                           <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">{field.name}</label>
@@ -371,6 +437,7 @@ const BusinessDetailsPage: React.FC = () => {
                           {configFields.map(field => (
                             <th key={field.key} className={`p-4 font-bold text-slate-500 text-[10px] uppercase tracking-wider ${isRTL ? 'text-right' : ''}`}>{field.name}</th>
                           ))}
+                          <th className={`p-4 font-bold text-slate-500 text-[10px] uppercase tracking-wider ${isRTL ? 'text-right' : ''}`}>Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
@@ -387,12 +454,43 @@ const BusinessDetailsPage: React.FC = () => {
                             <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition-colors text-[var(--color-txt-main)]">
                               <td className="p-4 text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap">
                                 {new Date(entry.createdAt).toLocaleDateString(language === 'en' ? 'en-US' : (language === 'ur' ? 'ur-PK' : 'sd-PK'))}
+                                {entry.createdByName && (
+                                  <div className="text-[10px] text-slate-400 mt-1 font-medium">By: {entry.createdByName}</div>
+                                )}
                               </td>
                               {configFields.map(field => (
                                 <td key={field.key} className="p-4 text-sm font-bold">
                                   {entry[field.key] || '-'}
                                 </td>
                               ))}
+                              <td className="p-4 text-sm">
+                                <div className="flex items-center gap-2">
+                                  <button 
+                                    onClick={() => handleEditEntry(entry)}
+                                    className="p-1.5 text-slate-400 hover:text-primary transition-colors"
+                                    title="Edit Entry"
+                                  >
+                                    <Edit size={16} />
+                                  </button>
+                                  {currentUser?.role !== 'employee' && (
+                                    <button 
+                                      onClick={() => handleDeleteEntry(entry.id)}
+                                      className="p-1.5 text-slate-400 hover:text-rose-500 transition-colors"
+                                      title="Delete Entry"
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
+                                  )}
+                                  {entry.updatedByName && (
+                                    <div className="group relative">
+                                      <Clock size={16} className="text-slate-300" />
+                                      <div className="absolute bottom-full mb-2 hidden group-hover:block bg-slate-800 text-white text-[10px] py-1 px-2 rounded whitespace-nowrap z-10">
+                                        Last update by: {entry.updatedByName}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
                             </tr>
                           ))
                         )}
@@ -406,6 +504,59 @@ const BusinessDetailsPage: React.FC = () => {
 
           {activeTab === 'reports' && (
             <div className={`space-y-6 ${isRTL ? 'text-right' : ''}`}>
+              {/* Business Overview Chart */}
+              <div className="card dark:bg-slate-800 dark:border-slate-700">
+                <div className="flex justify-between items-center mb-8">
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-white">Monthly Profit Performance</h3>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm">Overview of profit trends for the current month.</p>
+                  </div>
+                  <div className="flex items-center gap-2 px-3 py-1 bg-primary/10 text-primary rounded-full text-xs font-bold uppercase">
+                    <Clock size={14} />
+                    Current Month
+                  </div>
+                </div>
+
+                <div className="h-64 flex items-end justify-between gap-1 px-4 border-b border-slate-100 dark:border-slate-800 pb-2">
+                  {/* Generate 30 bars for the month */}
+                  {[...Array(30)].map((_, i) => {
+                    const dayProfit = entries
+                      .filter(e => {
+                        const d = new Date(e.createdAt);
+                        return d.getDate() === i + 1 && d.getMonth() === new Date().getMonth();
+                      })
+                      .reduce((sum, e) => {
+                        let rowProfit = 0;
+                        configFields.forEach(f => {
+                          if (f.accountingType === 'income') rowProfit += Number(e[f.key] || 0);
+                          if (f.accountingType === 'expense') rowProfit -= Number(e[f.key] || 0);
+                        });
+                        return sum + rowProfit;
+                      }, 0);
+                    
+                    const maxProfit = 10000; // Normalized for UI
+                    const height = Math.min(Math.abs(dayProfit / maxProfit) * 100, 100);
+                    
+                    return (
+                      <div key={i} className="flex-1 flex flex-col items-center group relative">
+                        <div 
+                          style={{ height: `${height || 2}%` }}
+                          className={`w-full rounded-t-sm transition-all group-hover:opacity-80 ${dayProfit >= 0 ? 'bg-emerald-400 shadow-emerald-400/20' : 'bg-rose-400 shadow-rose-400/20'}`}
+                        />
+                        <div className="absolute bottom-full mb-2 hidden group-hover:block bg-slate-800 text-white text-[10px] py-1 px-2 rounded whitespace-nowrap z-10">
+                          Day {i + 1}: {formatCurrency(dayProfit)}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex justify-between mt-2 px-4 text-[10px] text-slate-400 font-bold">
+                  <span>Day 1</span>
+                  <span>Day 15</span>
+                  <span>Day 30</span>
+                </div>
+              </div>
+
               <div className="card dark:bg-slate-800 dark:border-slate-700">
                 <div className={`flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 ${isRTL ? 'md:flex-row-reverse' : ''}`}>
                   <div>
@@ -423,12 +574,20 @@ const BusinessDetailsPage: React.FC = () => {
                     <p className="text-blue-600 dark:text-blue-400 font-bold text-xs uppercase tracking-widest mb-1">{t('totalEntries')}</p>
                     <p className="text-3xl font-black text-blue-900 dark:text-blue-300">{entries.length}</p>
                   </div>
-                  <div className={`p-6 rounded-2xl border ${calculateProfit() >= 0 ? 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-900/20' : 'bg-rose-50 dark:bg-rose-900/10 border-rose-100 dark:border-rose-900/20'}`}>
-                    <p className={`${calculateProfit() >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'} font-bold text-xs uppercase tracking-widest mb-1`}>
-                      {t('netProfit')}
+                  <div className={`p-6 rounded-2xl border ${profitData?.totalProfit >= 0 ? 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-900/20' : 'bg-rose-50 dark:bg-rose-900/10 border-rose-100 dark:border-rose-900/20'}`}>
+                    <p className={`${profitData?.totalProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'} font-bold text-xs uppercase tracking-widest mb-1`}>
+                      Total Business Profit
                     </p>
-                    <p className={`text-3xl font-black ${calculateProfit() >= 0 ? 'text-emerald-900 dark:text-emerald-300' : 'text-rose-900 dark:text-rose-300'}`}>
-                      {formatCurrency(calculateProfit())}
+                    <p className={`text-3xl font-black ${profitData?.totalProfit >= 0 ? 'text-emerald-900 dark:text-emerald-300' : 'text-rose-900 dark:text-rose-300'}`}>
+                      {formatCurrency(profitData?.totalProfit || 0)}
+                    </p>
+                  </div>
+                  <div className={`p-6 rounded-2xl border ${profitData?.userProfit >= 0 ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-100 dark:border-amber-900/20' : 'bg-rose-50 dark:bg-rose-900/10 border-rose-100 dark:border-rose-900/20'}`}>
+                    <p className={`${profitData?.userProfit >= 0 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'} font-bold text-xs uppercase tracking-widest mb-1`}>
+                      Your Share ({profitData?.userPercentage || 100}%)
+                    </p>
+                    <p className={`text-3xl font-black ${profitData?.userProfit >= 0 ? 'text-amber-900 dark:text-amber-300' : 'text-rose-900 dark:text-rose-300'}`}>
+                      {formatCurrency(profitData?.userProfit || 0)}
                     </p>
                   </div>
                   <div className="p-6 bg-purple-50 dark:bg-purple-900/10 rounded-2xl border border-purple-100 dark:border-purple-900/20">
@@ -464,6 +623,60 @@ const BusinessDetailsPage: React.FC = () => {
                       <Filter size={18} />
                       {t('applyFilter')}
                     </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'partners' && (
+            <div className={`space-y-6 ${isRTL ? 'text-right' : ''}`}>
+              <div className="card dark:bg-slate-800 dark:border-slate-700">
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-6">Partners & Ownership</h3>
+                <p className="text-slate-500 dark:text-slate-400 mb-8">Manage partners and their ownership percentages for this business.</p>
+                
+                <div className="space-y-4">
+                  {profitData?.partners && profitData.partners.length > 0 ? (
+                    profitData.partners.map((partner: any, idx: number) => (
+                      <div key={idx} className={`flex items-center justify-between p-6 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                        <div className={`flex items-center gap-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                          <div className="p-3 bg-primary/10 rounded-xl text-primary">
+                            <Users size={24} />
+                          </div>
+                          <div>
+                            <p className="font-bold text-slate-900 dark:text-white text-lg">{partner.name}</p>
+                            <p className="text-sm text-slate-500">{partner.role || 'Partner'}</p>
+                            {partner.investment > 0 && (
+                              <p className="text-xs text-emerald-600 dark:text-emerald-400 font-bold mt-1">
+                                Investment: {formatCurrency(partner.investment)}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-3xl font-black text-primary">{partner.percentage}%</p>
+                          <p className="text-xs text-slate-500 uppercase tracking-widest">Ownership</p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-12 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
+                      <Users size={48} className="mx-auto text-slate-300 mb-4" />
+                      <p className="text-slate-500">No partners added yet</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-8 p-6 bg-gradient-to-r from-primary/5 to-primary/10 dark:from-primary/10 dark:to-primary/20 rounded-2xl border border-primary/20">
+                  <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
+                    <div>
+                      <p className="text-sm font-bold text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-1">Total Ownership</p>
+                      <p className="text-4xl font-black text-primary">{profitData?.partners?.reduce((sum: number, p: any) => sum + p.percentage, 0) || 0}%</p>
+                    </div>
+                    <div className={`text-right ${isRTL ? 'text-left' : ''}`}>
+                      <p className="text-sm font-bold text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-1">Your Profit Share</p>
+                      <p className="text-4xl font-black text-emerald-600 dark:text-emerald-400">{formatCurrency(profitData?.userProfit || 0)}</p>
+                    </div>
                   </div>
                 </div>
               </div>
