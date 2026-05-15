@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import axios from 'axios';
 
 // Assuming we have an auth header interceptor set up in api.ts or we pass it manually
-const API_URL = 'http://localhost:5000/users';
+const API_URL = `${import.meta.env.VITE_API_URL}/users`;
 
 const UsersPage: React.FC = () => {
   const [users, setUsers] = useState<any[]>([]);
@@ -45,7 +45,7 @@ const UsersPage: React.FC = () => {
       setUsers(res.data);
 
       // Fetch businesses for assignment
-      const bizRes = await axios.get('http://localhost:5000/businesses', {
+      const bizRes = await axios.get(`${import.meta.env.VITE_API_URL}/businesses`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setBusinesses(bizRes.data);

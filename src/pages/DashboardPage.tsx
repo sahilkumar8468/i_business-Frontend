@@ -35,7 +35,7 @@ const DashboardPage: React.FC = () => {
       try {
         setIsLoading(true);
         const token = localStorage.getItem('token');
-        const meRes = await fetch('http://localhost:5000/users/me', {
+        const meRes = await fetch(`${import.meta.env.VITE_API_URL}/users/me`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         const userData = await meRes.json();

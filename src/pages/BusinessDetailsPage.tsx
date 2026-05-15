@@ -57,7 +57,7 @@ const BusinessDetailsPage: React.FC = () => {
     const fetchUser = async () => {
       try {
         const token = localStorage.getItem('token');
-        const res = await fetch('http://localhost:5000/users/me', {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/users/me`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (res.ok) setCurrentUser(await res.json());
