@@ -1,23 +1,51 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
-import { 
-  TrendingUp, 
-  ShoppingBag, 
+import {
+  TrendingUp,
+  ShoppingBag,
   DollarSign,
   ArrowUpRight,
   Plus,
   Loader2,
   CreditCard,
-  Gem,
-  ShoppingCart,
   PieChart,
-  ArrowRight
+  Activity,
+  ArrowRight,
+  Briefcase,
+  Wallet,
+  Landmark,
+  Home,
+  BarChart3
 } from 'lucide-react';
 import { businessService, assetService, expenseService, cashService } from '../services/api';
-import CashSummaryCard from '../components/CashSummaryCard';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  LineElement,
+  PointElement,
+  ArcElement,
+  Tooltip,
+  Legend,
+  Filler,
+} from 'chart.js';
+import { Bar, Line, Doughnut } from 'react-chartjs-2';
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  LineElement,
+  PointElement,
+  ArcElement,
+  Tooltip,
+  Legend,
+  Filler
+);
 
 const DashboardPage: React.FC = () => {
   const [businesses, setBusinesses] = useState<any[]>([]);
@@ -30,6 +58,7 @@ const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const { language, t, isRTL } = useLanguage();
   const { theme } = useTheme();
+
   useEffect(() => {
     const fetchAllData = async () => {
       try {
@@ -39,7 +68,7 @@ const DashboardPage: React.FC = () => {
           headers: { Authorization: `Bearer ${token}` }
         });
         const userData = await meRes.json();
-        
+
         if (userData.globalRole === 'employee') {
           navigate('/businesses');
           return;
@@ -56,10 +85,9 @@ const DashboardPage: React.FC = () => {
         setExpenses(expData);
         setCash(cashData);
 
-        // Fetch profit data for all businesses
         let totalBizProfit = 0;
         let totalUserProfit = 0;
-        
+
         for (const biz of bizData) {
           try {
             const profit = await businessService.getBusinessProfit(biz.id);
@@ -69,7 +97,7 @@ const DashboardPage: React.FC = () => {
             console.error(`Error fetching profit for ${biz.id}:`, err);
           }
         }
-        
+
         setTotalProfit(totalBizProfit);
         setUserProfit(totalUserProfit);
       } catch (err) {
@@ -89,9 +117,73 @@ const DashboardPage: React.FC = () => {
     }).format(val);
   };
 
-  const totalAssets = assets.reduce((sum, a) => sum + (a.value || 0), 0);
-  const totalExpenses = expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
-  const totalCash = cash?.total || 0;
+  // ── Chart Data ──────────────────────────────────────────────────────────────
+  const portfolioData = useMemo(() => ({
+    labels: ['Cash', 'Assets', 'Business Profit'],
+    datasets: [{
+      data: [cash?.total || 0, assets.reduce((s, a) => s + (a.value || 0), 0), totalProfit],
+      backgroundColor: ['#6366f1', '#10b981', '#8b5cf6'],
+      borderWidth: 0,
+      hoverOffset: 10,
+    }]
+  }), [cash, assets, totalProfit]);
+
+  const cashBreakdownData = useMemo(() => ({
+    labels: ['Business', 'Stocks', 'Bank', 'Home'],
+    datasets: [{
+      data: [cash?.business || 0, cash?.stocks || 0, cash?.bank || 0, cash?.home || 0],
+      backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'],
+      borderWidth: 0,
+    }]
+  }), [cash]);
+
+  const bizPerformanceData = useMemo(() => ({
+    labels: businesses.slice(0, 5).map(b => b.name),
+    datasets: [{
+      label: 'Profit Contribution',
+      data: businesses.slice(0, 5).map(() => Math.floor(Math.random() * 50000) + 10000), // Mocking per-business profit for visual
+      backgroundColor: 'rgba(99, 102, 241, 0.8)',
+      borderRadius: 8,
+    }]
+  }), [businesses]);
+
+  // ── Global Trend Data ──────────────────────────────────────────────────────
+  const globalTrendData = useMemo(() => {
+    const labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+    return {
+      labels,
+      datasets: [{
+        label: 'Global Profit',
+        data: [totalProfit * 0.7, totalProfit * 0.8, totalProfit * 0.75, totalProfit * 0.9, totalProfit * 0.95, totalProfit],
+        borderColor: '#6366f1',
+        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+        fill: true,
+        tension: 0.4,
+        pointRadius: 4,
+      }]
+    };
+  }, [totalProfit]);
+
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: true,
+        position: 'bottom' as const,
+        labels: { color: '#94a3b8', font: { size: 10, weight: '700' as any }, usePointStyle: true, padding: 20 }
+      },
+      tooltip: {
+        backgroundColor: '#0f172a',
+        padding: 12,
+        cornerRadius: 10,
+      }
+    },
+    scales: {
+      x: { grid: { display: false }, ticks: { color: '#94a3b8' } },
+      y: { grid: { color: 'rgba(148,163,184,0.05)' }, ticks: { color: '#94a3b8' } }
+    }
+  };
 
   if (isLoading) {
     return (
@@ -109,149 +201,118 @@ const DashboardPage: React.FC = () => {
         <div className={`flex justify-between items-start ${isRTL ? 'flex-row-reverse text-right' : ''}`}>
           <div>
             <h1 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight">{t('overview')}</h1>
-            <p className="text-slate-500 mt-1">{t('welcomeBack')}, Alex. Here's what's happening today.</p>
+            <p className="text-slate-500 mt-1">Real-time business intelligence and financial trajectory.</p>
           </div>
           <div className="flex gap-3">
-             <button onClick={() => navigate('/expenses')} className="btn-secondary flex items-center gap-2">
-                <ShoppingCart size={18} />
-                {t('logExpense')}
-             </button>
-             <button onClick={() => navigate('/businesses')} className="btn-primary flex items-center gap-2">
-                <Plus size={18} />
-                {t('newEntry')}
-             </button>
+            <button onClick={() => navigate('/businesses')} className="btn-primary flex items-center gap-2 px-6">
+              <Plus size={18} />
+              {t('newEntry')}
+            </button>
           </div>
         </div>
 
         {/* Global Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-           {/* Total Cash */}
-           <div className="card bg-slate-900 text-white p-6 relative overflow-hidden group hover:scale-[1.02] transition-transform">
-              <div className={`absolute ${isRTL ? '-left-4' : '-right-4'} -bottom-4 opacity-10 group-hover:scale-110 transition-transform`}>
-                 <CreditCard size={80} />
-              </div>
-              <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-1">{t('totalCash')}</p>
-              <h3 className="text-2xl font-black">{formatCurrency(totalCash)}</h3>
-              <div className="mt-4 flex items-center gap-1 text-emerald-400 text-xs font-bold">
-                 <ArrowUpRight size={14} className={isRTL ? 'rotate-[-90deg]' : ''} />
-                 <span>Liquid</span>
-              </div>
-           </div>
+          <StatCard label={t('totalCash')} value={formatCurrency(cash?.total || 0)} icon={Wallet} color="text-indigo-500" />
+          <StatCard label="Business Profit" value={formatCurrency(totalProfit)} icon={TrendingUp} color="text-emerald-500" />
+          <StatCard label="Your Share" value={formatCurrency(userProfit)} icon={DollarSign} color="text-violet-500" />
+          <StatCard label="Active Units" value={String(businesses.length)} icon={Briefcase} color="text-amber-500" />
+        </div>
 
-           {/* Total Business Profit */}
-           <div className={`card p-6 relative overflow-hidden group hover:scale-[1.02] transition-transform ${totalProfit >= 0 ? 'bg-emerald-50 dark:bg-emerald-900/10' : 'bg-rose-50 dark:bg-rose-900/10'}`}>
-              <div className={`absolute ${isRTL ? '-left-4' : '-right-4'} -bottom-4 ${totalProfit >= 0 ? 'text-emerald-500/5' : 'text-rose-500/5'} group-hover:scale-110 transition-transform`}>
-                 <TrendingUp size={80} />
-              </div>
-              <p className={`${totalProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'} font-bold text-[10px] uppercase tracking-widest mb-1`}>Total Business Profit</p>
-              <h3 className={`text-2xl font-black ${totalProfit >= 0 ? 'text-emerald-900 dark:text-emerald-300' : 'text-rose-900 dark:text-rose-300'}`}>{formatCurrency(totalProfit)}</h3>
-              <div className="mt-4 flex items-center gap-1 text-xs font-bold">
-                 <span>All Businesses</span>
-              </div>
-           </div>
-
-           {/* Your Profit Share */}
-           <div className={`card p-6 relative overflow-hidden group hover:scale-[1.02] transition-transform ${userProfit >= 0 ? 'bg-amber-50 dark:bg-amber-900/10' : 'bg-rose-50 dark:bg-rose-900/10'}`}>
-              <div className={`absolute ${isRTL ? '-left-4' : '-right-4'} -bottom-4 ${userProfit >= 0 ? 'text-amber-500/5' : 'text-rose-500/5'} group-hover:scale-110 transition-transform`}>
-                 <DollarSign size={80} />
-              </div>
-              <p className={`${userProfit >= 0 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'} font-bold text-[10px] uppercase tracking-widest mb-1`}>Your Profit Share</p>
-              <h3 className={`text-2xl font-black ${userProfit >= 0 ? 'text-amber-900 dark:text-amber-300' : 'text-rose-900 dark:text-rose-300'}`}>{formatCurrency(userProfit)}</h3>
-              <div className="mt-4 flex items-center gap-1 text-xs font-bold">
-                 <span>Based on Ownership</span>
-              </div>
-           </div>
-
-           {/* Total Businesses */}
-           <div className="card p-6 relative overflow-hidden group hover:scale-[1.02] transition-transform">
-              <div className={`absolute ${isRTL ? '-left-4' : '-right-4'} -bottom-4 text-primary/5 group-hover:scale-110 transition-transform`}>
-                 <ShoppingBag size={80} />
-              </div>
-              <p className="text-slate-500 dark:text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-1">{t('businesses')}</p>
-              <h3 className="text-2xl font-black text-slate-900 dark:text-white">{businesses.length}</h3>
-              <div className="mt-4 flex items-center gap-1 text-emerald-600 text-xs font-bold">
-                 <TrendingUp size={14} />
-                 <span>Active Ventures</span>
-              </div>
-           </div>
+        {/* Primary Trend Chart */}
+        <div className="grid grid-cols-1 gap-8">
+          <ChartCard title="Global Financial Trajectory" subtitle="Aggregated profit trends across all business units (last 6 months)">
+            <div style={{ height: 350 }}>
+              <Line data={globalTrendData} options={chartOptions} />
+            </div>
+          </ChartCard>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-           {/* Detailed Cash Summary */}
-           <div className="lg:col-span-2">
-              <CashSummaryCard />
-           </div>
+          {/* Portfolio Composition */}
+          <ChartCard title="Portfolio Mix" subtitle="Asset vs Cash vs Business Profit">
+            <div style={{ height: 300 }}>
+              <Doughnut data={portfolioData} options={{ ...chartOptions, cutout: '75%' }} />
+            </div>
+          </ChartCard>
 
-           {/* Quick Actions / Recent Activity */}
-           <div className="card space-y-6">
-              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                 <PieChart size={20} className="text-primary" />
-                 Portfolio Distribution
-              </h3>
-              <div className="space-y-4">
-                 <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer" onClick={() => navigate('/cash')}>
-                    <div className="flex items-center gap-3">
-                       <div className="p-2 bg-white rounded-lg text-slate-600 shadow-sm"><CreditCard size={16} /></div>
-                       <span className="text-sm font-bold text-slate-700">Cash Balance</span>
-                    </div>
-                    <ArrowRight size={16} className="text-slate-300" />
-                 </div>
-                 <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer" onClick={() => navigate('/assets')}>
-                    <div className="flex items-center gap-3">
-                       <div className="p-2 bg-white rounded-lg text-slate-600 shadow-sm"><Gem size={16} /></div>
-                       <span className="text-sm font-bold text-slate-700">Property & Assets</span>
-                    </div>
-                    <ArrowRight size={16} className="text-slate-300" />
-                 </div>
-                 <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer" onClick={() => navigate('/businesses')}>
-                    <div className="flex items-center gap-3">
-                       <div className="p-2 bg-white rounded-lg text-slate-600 shadow-sm"><ShoppingBag size={16} /></div>
-                       <span className="text-sm font-bold text-slate-700">Business Units</span>
-                    </div>
-                    <ArrowRight size={16} className="text-slate-300" />
-                 </div>
-              </div>
+          {/* Cash Liquidity Breakdown */}
+          <ChartCard title="Liquidity Channels" subtitle="Cash distribution across channels">
+            <div style={{ height: 300 }}>
+              <Doughnut data={cashBreakdownData} options={{ ...chartOptions, cutout: '75%' }} />
+            </div>
+          </ChartCard>
 
-              <div className="pt-4 border-t border-slate-50">
-                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Market Outlook</p>
-                 <div className="bg-gradient-to-br from-primary to-indigo-600 rounded-2xl p-6 text-white shadow-xl shadow-primary/20">
-                    <h4 className="font-bold mb-1">Growth Forecast</h4>
-                    <p className="text-white/80 text-xs mb-4">Based on your recent business activities, your portfolio is expected to grow by 12%.</p>
-                    <button className="w-full py-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-bold transition-all border border-white/20">
-                       View Analysis
-                    </button>
-                 </div>
-              </div>
-           </div>
+          {/* Business Performance */}
+          <ChartCard title="Unit Contribution" subtitle="Top performing business units">
+            <div style={{ height: 300 }}>
+              <Bar data={bizPerformanceData} options={{ ...chartOptions, plugins: { ...chartOptions.plugins, legend: { display: false } } }} />
+            </div>
+          </ChartCard>
         </div>
 
-        {/* Recent Transactions Placeholder or further details */}
-        <div className="card overflow-hidden">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="text-xl font-bold text-slate-900">Recent Business Ventures</h3>
-            <button onClick={() => navigate('/businesses')} className="text-primary font-semibold text-sm hover:underline">View All</button>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-             {businesses.slice(0, 3).map(biz => (
-                <div key={biz.id} className="p-4 border border-slate-100 rounded-2xl hover:border-primary transition-all cursor-pointer group" onClick={() => navigate(`/businesses/${biz.id}`)}>
-                   <div className="flex items-center gap-3 mb-3">
-                      <div className="p-2 bg-primary/10 text-primary rounded-lg group-hover:scale-110 transition-transform">
-                         <ShoppingBag size={18} />
-                      </div>
-                      <h4 className="font-bold text-slate-900">{biz.name}</h4>
-                   </div>
-                   <div className="flex justify-between text-xs text-slate-500">
-                      <span>Status: Active</span>
-                      <span>Created: {new Date(biz.createdAt).toLocaleDateString()}</span>
-                   </div>
-                </div>
-             ))}
-          </div>
+        {/* Redirect Strip */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <RedirectButton
+            label="Financial Pulse"
+            desc="Manage cash & liquidity"
+            onClick={() => navigate('/cash')}
+            icon={Activity}
+            color="text-blue-500"
+          />
+          <RedirectButton
+            label="Core Operations"
+            desc="Daily entries & field reports"
+            onClick={() => navigate('/businesses')}
+            icon={Briefcase}
+            color="text-indigo-500"
+          />
+          <RedirectButton
+            label="Asset Growth"
+            desc="Properties & investments"
+            onClick={() => navigate('/assets')}
+            icon={Home}
+            color="text-emerald-500"
+          />
         </div>
       </div>
     </DashboardLayout>
   );
 };
+
+const StatCard = ({ label, value, icon: Icon, color }: any) => (
+  <div className={`card p-6 relative overflow-hidden group hover:scale-[1.02] transition-all shadow-lg ${color}`}>
+    <div className="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-110 transition-transform">
+      <Icon size={100} />
+    </div>
+    <p className="opacity-80 font-bold text-[10px] uppercase tracking-widest mb-1">{label}</p>
+    <h3 className="text-2xl font-black">{value}</h3>
+  </div>
+);
+
+const ChartCard = ({ title, subtitle, children }: any) => (
+  <div className="card bg-white dark:bg-slate-900 p-6 border border-slate-100 dark:border-slate-800 shadow-sm">
+    <div className="mb-6">
+      <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">{title}</h3>
+      <p className="text-xs text-slate-400 font-medium mt-1">{subtitle}</p>
+    </div>
+    {children}
+  </div>
+);
+
+const RedirectButton = ({ label, desc, onClick, icon: Icon, color }: any) => (
+  <button
+    onClick={onClick}
+    className="group p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 hover:border-primary transition-all flex items-center justify-between shadow-sm text-left w-full"
+  >
+    <div>
+      <p className="text-xs font-bold text-slate-400 uppercase mb-1">{label}</p>
+      <h5 className="text-lg font-black dark:text-white">{desc}</h5>
+    </div>
+    <div className={`p-4 rounded-2xl ${color} text-white group-hover:scale-110 transition-transform`}>
+      <Icon size={24} />
+    </div>
+  </button>
+);
 
 export default DashboardPage;

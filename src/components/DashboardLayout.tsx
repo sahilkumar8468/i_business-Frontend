@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { 
-  LayoutDashboard, 
-  Users, 
-  Settings, 
-  Bell, 
-  Search, 
-  Menu, 
-  X, 
+import {
+  LayoutDashboard,
+  Users,
+  Settings,
+  Bell,
+  Search,
+  Menu,
+  X,
   LogOut,
   BarChart3,
   CreditCard,
@@ -87,7 +87,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       <Toaster position="top-right" />
       {/* Sidebar Overlay (Mobile) */}
       {isSidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-slate-900/50 z-40 md:hidden backdrop-blur-sm"
           onClick={() => setIsSidebarOpen(false)}
         />
@@ -120,7 +120,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           </nav>
 
           <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
-            <button 
+            <button
               onClick={() => navigate('/login')}
               className="flex items-center gap-3 px-4 py-3 w-full text-slate-600 dark:text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/10 rounded-xl transition-all duration-200 font-medium group"
             >
@@ -136,18 +136,18 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         {/* Topbar */}
         <header className="h-20 bg-[var(--color-surface)] border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 md:px-8 shrink-0">
           <div className="flex items-center gap-4">
-            <button 
+            <button
               className="md:hidden p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400"
               onClick={() => setIsSidebarOpen(true)}
             >
               <Menu size={24} />
             </button>
-            
+
             <div className="hidden sm:flex items-center bg-slate-100 dark:bg-slate-800 rounded-full px-4 py-2 w-72 group focus-within:ring-2 focus-within:ring-primary/20 focus-within:bg-white dark:focus-within:bg-slate-700 transition-all">
               <Search size={18} className="text-slate-400" />
-              <input 
-                type="text" 
-                placeholder={t('search')} 
+              <input
+                type="text"
+                placeholder={t('search')}
                 className="bg-transparent border-none focus:outline-none ml-2 w-full text-sm text-[var(--color-txt-main)]"
               />
             </div>
@@ -155,7 +155,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
 
           <div className="flex items-center gap-2 md:gap-6">
             {/* Theme Toggle */}
-            <button 
+            <button
               onClick={toggleTheme}
               className="p-2.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
               title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
@@ -180,15 +180,15 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
               <Bell size={20} />
               <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-white dark:border-slate-900" />
             </button>
-            
+
             <div className="h-10 w-[1px] bg-slate-200 hidden sm:block" />
-            
+
             <div className="flex items-center gap-3 pl-2">
               <div className="text-right hidden sm:block">
                 <p className="text-sm font-bold text-slate-900">
-                  
+
                   Alex Johnson
-                  </p>
+                </p>
                 <p className="text-xs text-slate-500">Administrator</p>
               </div>
               <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-primary to-indigo-400 border-2 border-white shadow-md flex items-center justify-center text-white font-bold">
